@@ -1,22 +1,28 @@
 const express = require('express');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
-const db = new Database('dating.db');
+const pool = new Pool({
+  user: 'gato',
+  host: 'localhost',
+  database: 'datingapp',
+  password: 'tu_contraseña_aqui',
+  port: 5432,
+});
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
 // Crear tabla
-db.exec(`
+pool.query(`
   CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
     lat REAL NOT NULL,
     lon REAL NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
@@ -33,29 +39,28 @@ function haversine(lat1, lon1, lat2, lon2) {
 }
 
 // Registrar/actualizar usuario con ubicación
-app.post('/api/location', (req, res) => {
+app.post('/api/location', async (req, res) => {
   const { name, lat, lon } = req.body;
   if (!name || !lat || !lon)
     return res.status(400).json({ error: 'Faltan datos' });
 
-  const existing = db.prepare('SELECT id FROM users WHERE name = ?').get(name);
-  if (existing) {
-    db.prepare('UPDATE users SET lat=?, lon=?, updated_at=CURRENT_TIMESTAMP WHERE name=?')
-      .run(lat, lon, name);
-  } else {
-    db.prepare('INSERT INTO users (name, lat, lon) VALUES (?, ?, ?)')
-      .run(name, lat, lon);
-  }
+  await pool.query(`
+    INSERT INTO users (name, lat, lon)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (name)
+    DO UPDATE SET lat=$2, lon=$3, updated_at=CURRENT_TIMESTAMP
+  `, [name, lat, lon]);
+
   res.json({ ok: true });
 });
 
 // Ver usuarios cercanos
-app.get('/api/nearby', (req, res) => {
+app.get('/api/nearby', async (req, res) => {
   const { lat, lon, name } = req.query;
   if (!lat || !lon) return res.status(400).json({ error: 'Faltan coordenadas' });
 
-  const users = db.prepare('SELECT * FROM users WHERE name != ?').all(name || '');
-  const nearby = users.map(u => ({
+  const result = await pool.query('SELECT * FROM users WHERE name != $1', [name || '']);
+  const nearby = result.rows.map(u => ({
     name: u.name,
     distance_km: haversine(parseFloat(lat), parseFloat(lon), u.lat, u.lon).toFixed(1)
   })).sort((a, b) => a.distance_km - b.distance_km);
