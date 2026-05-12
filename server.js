@@ -7,7 +7,7 @@ const pool = new Pool({
   user: 'gato',
   host: 'localhost',
   database: 'datingapp',
-  password: 'tu_contraseña_aqui',
+  password: 'gato1331',
   port: 5432,
 });
 
