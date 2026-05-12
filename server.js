@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = express();
 const pool = new Pool({
   user: 'postgres',
-  host: 'localhost',
+  host: '127.0.0.1',
   database: 'datingapp',
   password: 'gato1331',
   port: 5432,
