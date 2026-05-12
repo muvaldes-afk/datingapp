@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dating App</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px; }
+    input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; box-sizing: border-box; }
+    button { background: #e91e8c; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    .user-card { background: #f5f5f5; padding: 12px; margin: 8px 0; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h2>💘 Dating App</h2>
+  <input id="name" placeholder="Tu nombre" />
+  <button onclick="sendLocation()">📍 Compartir ubicación</button>
+  <button onclick="getNearby()">👀 Ver personas cercanas</button>
+  <div id="result"></div>
+
+  <script>
+    const SERVER = 'http://<IP_DEL_SERVIDOR>:3000';
+
+    async function sendLocation() {
+      const name = document.getElementById('name').value.trim();
+      if (!name) return alert('Ingresa tu nombre');
+
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        await fetch(`${SERVER}/api/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, lat, lon })
+        });
+        document.getElementById('result').innerHTML = `<p>✅ Ubicación enviada</p>`;
+      }, () => alert('No se pudo obtener GPS'));
+    }
+
+    async function getNearby() {
+      const name = document.getElementById('name').value.trim();
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        const res = await fetch(`${SERVER}/api/nearby?lat=${lat}&lon=${lon}&name=${name}`);
+        const users = await res.json();
+        if (users.length === 0) {
+          document.getElementById('result').innerHTML = '<p>No hay nadie cerca aún</p>';
+          return;
+        }
+        document.getElementById('result').innerHTML = users.map(u =>
+          `<div class="user-card">👤 ${u.name} — 📍 ${u.distance_km} km</div>`
+        ).join('');
+      });
+    }
+  </script>
+</body>
+</html>
