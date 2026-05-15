@@ -3,6 +3,9 @@ const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'secreto_temporal';
 require('dotenv').config();
 
 const pool = new Pool({
@@ -68,6 +71,38 @@ app.get('/api/nearby', async (req, res) => {
   })).sort((a, b) => a.distance_km - b.distance_km);
 
   res.json(nearby);
+});
+
+// Registro
+app.post('/api/register', async (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password || !name)
+    return res.status(400).json({ error: 'Faltan datos' });
+
+  const hash = await bcrypt.hash(password, 10);
+  try {
+    await pool.query(
+      'INSERT INTO auth (email, password, name) VALUES ($1, $2, $3)',
+      [email, hash, name]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: 'Email ya registrado' });
+  }
+});
+
+// Login
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  const result = await pool.query('SELECT * FROM auth WHERE email = $1', [email]);
+  const user = result.rows[0];
+  if (!user) return res.status(400).json({ error: 'Usuario no encontrado' });
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(400).json({ error: 'Contraseña incorrecta' });
+
+  const token = jwt.sign({ id: user.id, name: user.name }, JWT_SECRET);
+  res.json({ token, name: user.name });
 });
 
 app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
